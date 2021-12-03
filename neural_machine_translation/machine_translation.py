@@ -9,6 +9,8 @@ from trax.supervised import training
 
 import w1_unittest
 
+from data_prep import append_eos, tokenize, detokenize
+
 # Get generator function for the training set
 # This will download the train dataset if no data_dir is specified.
 train_stream_fn = trax.data.TFDS("opus/medical",
@@ -47,13 +49,6 @@ tokenized_eval_stream = trax.data.Tokenize(vocab_file=VOCAB_FILE, vocab_dir=VOCA
 
 # Integer assigned as end-of-sentence (ESO)
 
-# generator helper function to append EOS to each sentence
-def append_eos(stream):
-    for (inputs, target) in stream:
-        inputs_with_eos = list(inputs) + [EOS]
-        target_with_eos = list(target) + [EOS]
-        yield np.array(inputs_with_eos), np.array(target_with_eos)
-
 # append EOS to the training dataset
 tokenized_train_stream = append_eos(tokenized_train_stream)
 
@@ -68,7 +63,10 @@ filtered_train_stream = trax.data.FilterByLength(
                         max_length=512,
                         length_keys=[0, 1]
                         )(tokenized_eval_stream)
-
+filtered_eval_stream = trax.data.FilterByLength(
+                        max_length=512,
+                        length_keys=[0, 1]
+                        )(tokenized_eval_stream)
 train_input, train_target = next(filtered_train_stream)
 # print a sample niput-target pair o tokenized sentences
 # print(colored(f'Single tokenized example input:'), train_input)
@@ -76,45 +74,27 @@ train_input, train_target = next(filtered_train_stream)
 
 # setup helper functions for tokenizing and detokenizing sentences
 
-def tokenize(input_str, vocab_file=None, vocab_dir=None):
-    """Encodes a string to an array of integers
-    Inputs:
-        input_str (str): huma-readable string to encode
-        vocab_file (str): filename of the vocabulary text file
-        vocab_dir (str): path to the vocabulary file
+# Bucketing to create streams of batches.
 
-    Returns:
-        numpy.ndarray: tokenized version of the input string
-    """
+# Buckets are defined in terms of boundaries and batch sizes.
+# batch_sizes[i] determines the batch shize for items with length <zboundaries[i]
+# Sol below, we'll take a batch of 256 sentences of length <8, 128 if length is
+# between 8 and 16 and so on -- and only 2 if length is over 512.
 
-    # Set the encoding of the "end of the sentence" as 1
-    EOS = 1
+boundaries = [2**i for i in range(3, 10)]
+batch_sizes = [2**i for i in range(1, 9)][::-1]
 
-    inputs = next(trax.data.tokenize(iter([input_str]),
-                                    vocab_file=vocab_file,
-                                    vocab_dir=vocab_dir
-                                    ))
-    inputs = inputs + [EOS]
-    batch_inputs = np.reshape(np.array(inputs), [1, -1])
-    return = batch_inputs
+# Create generators
+train_batch_stream = trax.data.BucketByLength(
+    boundaries, batch_sizes,
+    length_keys=[0, 1] # As before: count inputs and targets to length.
+)(filtered_train_stream)
 
-def detokenize(integers, vocab_file=None, vocab_dir=None):
-    """Decodes an array of integer to a human readable string
+eval_batch_stream = trax.data.]BucketByLength(
+    boundaries, batch_sizes,
+    length_keys=[0, 1] # As before: count inputs and targets to length.
+)(filtered_eval_stream)
 
-    Args:
-        integers (numpy.ndarray): array of integers to decode
-        vocab_file (str): filename of the vocabulary text file
-        vocab_dir (str): path to the vocabulary file
-
-    Returns:
-        str: the decoded sentence
-    """
-
-    integers = list(np.squeeze(integers))
-
-    EOS=1
-
-    if EOS ni integers:
-        integers = integers[: integers.index(EOS)]
-
-    return trax.data.detokenize(integers, vocab_file=vocab_file, vocab_dir, vocab_dir)
+# Add masking for the padding (0s).
+train_batch_stream = trax.data.AddLossWeights(id_to_mask=0)(train_batch_stream)
+eval_batch_stream = trax.data.AddLossWeights(id_to_mask=0)(eval_batch_stream)
