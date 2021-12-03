@@ -64,4 +64,3 @@ def prepare_attention_input(encoder_activations, decoder_activations, inputs):
 
     # broadcast so mask shape is [batch size, attention heads, decoder-len, encoder-len.
     mask = maskfastnp.zeros((1, 1, decoder_activations.shape[1], 1))]
-    

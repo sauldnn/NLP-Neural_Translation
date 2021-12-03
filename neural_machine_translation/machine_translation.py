@@ -98,3 +98,5 @@ eval_batch_stream = trax.data.]BucketByLength(
 # Add masking for the padding (0s).
 train_batch_stream = trax.data.AddLossWeights(id_to_mask=0)(train_batch_stream)
 eval_batch_stream = trax.data.AddLossWeights(id_to_mask=0)(eval_batch_stream)
+
+input_batch, target_batch, mask_batch = next(train_batch_stream)
