@@ -66,26 +66,26 @@ def prepare_attention_input(encoder_activations, decoder_activations, inputs):
     mask = mask + fastnp.zeros((1, 1, decoder_activations.shape[1], 1))
     return queries, keys, values, mask
 
-    def AttentionQKV(d_feature, n_heads=1, dropout=0.0, mode="train"):
-        """ Returns a leyer that maps (q, k, v, mask) to (activations. mask)
-        Args:
-            d_feature: Depth/dimensionality of feature embedding.
-            n_heads: Number of attention heads.
-            dropout: Probabilistic rate for internal dropout applied to attention
-                activations (based on query-key pairs) before dotting them with values.
-            mode: Either 'train' pr 'eval'.
-        """
-        return cb.Serial(
-            cb.Parallel(
-                core.Dense(d_feature),
-                core.Dense(d_feature),
-                core.Dense(d_feature).
+def AttentionQKV(d_feature, n_heads=1, dropout=0.0, mode="train"):
+    """ Returns a leyer that maps (q, k, v, mask) to (activations. mask)
+    Args:
+        d_feature: Depth/dimensionality of feature embedding.
+        n_heads: Number of attention heads.
+        dropout: Probabilistic rate for internal dropout applied to attention
+            activations (based on query-key pairs) before dotting them with values.
+        mode: Either 'train' pr 'eval'.
+    """
+    return cb.Serial(
+        cb.Parallel(
+            core.Dense(d_feature),
+            core.Dense(d_feature),
+            core.Dense(d_feature).
+        ),
+        PureAttention( #pyLint: disable-no-value-for-parameter
+            n_heads=n_heads,
+            dropout=dropout,
+            mode=mode
             ),
-            PureAttention( #pyLint: disable-no-value-for-parameter
-                n_heads=n_heads,
-                dropout=dropout,
-                mode=mode
-                ),
-            core.Dense(d_feature)
+        core.Dense(d_feature)
 
-        )
+    )
