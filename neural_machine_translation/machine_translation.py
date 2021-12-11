@@ -100,3 +100,37 @@ train_batch_stream = trax.data.AddLossWeights(id_to_mask=0)(train_batch_stream)
 eval_batch_stream = trax.data.AddLossWeights(id_to_mask=0)(eval_batch_stream)
 
 input_batch, target_batch, mask_batch = next(train_batch_stream)
+
+model = NMTAttn()
+
+train_task = train_task_function(train_batch_stream)
+
+eval_task = training.EvalTask(
+
+    ## use the eval batch stream as labeled data
+    labeled_data=eval_batch_stream,
+
+    ## use the cross entropy loss and accuracy as metrics
+    metrics=[tl.CrossEntropyLoss(), tl.Accuracy()],
+)
+
+# define the output directory
+output_dir = 'output_dir/'
+
+# remove old model if it exists. restarts training.
+!rm -f ~/output_dir/model.pkl.gz
+
+# define the training loop
+training_loop = training.Loop(NMTAttn(mode='train'),
+                              train_task,
+                              eval_tasks=[eval_task],
+                              output_dir=output_dir)
+
+training_loop.run(10)
+
+# instantiate the model we built in eval mode
+model = NMTAttn(mode='eval')
+
+# initialize weights from a pre-trained model
+model.init_from_file("model.pkl.gz", weights_only=True)
+model = tl.Accelerate(model)
